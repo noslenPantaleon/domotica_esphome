@@ -16,13 +16,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Database init
-try:
-    from src.database.mysql import engine, Base
-    Base.metadata.create_all(bind=engine)
-    print("MySQL tables created")
-except Exception as e:
-    print(f"MySQL init failed: {e}")
+# Schema is managed by Alembic — run: alembic upgrade head
 
 # MQTT
 try:
