@@ -16,6 +16,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Register all models with SQLAlchemy so relationship strings resolve at startup
+from src.clientes.models import Cliente              # noqa: F401
+from src.ubicaciones.models import Ubicacion         # noqa: F401
+from src.usuarios.models import Usuario              # noqa: F401
+from src.facturacion.models import Facturacion       # noqa: F401
+from src.dispositivos.models import ClienteDispositivo  # noqa: F401
+
 # Schema is managed by Alembic — run: alembic upgrade head
 
 # MQTT
