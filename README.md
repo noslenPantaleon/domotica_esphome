@@ -166,14 +166,20 @@ MQTT_PASSWORD=
 
 Las migraciones son gestionadas con **Alembic**. El esquema MySQL se controla por versiones.
 
+### Primera instalacion
+
+Con la base de datos `domotic` ya creada y el archivo `.env` configurado, aplicar todas las migraciones existentes para crear las tablas:
+
 ```bash
-# Aplicar todas las migraciones pendientes (primera vez o tras actualizar)
 alembic upgrade head
+```
 
-# Generar una nueva migracion despues de modificar un modelo
-alembic revision --autogenerate -m "descripcion_del_cambio"
+Esto crea las tablas `clientes`, `ubicaciones`, `usuarios`, `facturacion` y `cliente_dispositivos`. Solo despues de este paso se puede ejecutar `seed.py`.
 
-# Ver el estado actual
+### Comandos de uso frecuente
+
+```bash
+# Ver el estado actual (revision aplicada)
 alembic current
 
 # Ver historial de migraciones
@@ -181,6 +187,16 @@ alembic history
 
 # Revertir la ultima migracion
 alembic downgrade -1
+```
+
+### Al modificar un modelo
+
+```bash
+# 1. Generar una nueva migracion a partir de los cambios en los modelos
+alembic revision --autogenerate -m "descripcion_del_cambio"
+
+# 2. Revisar el archivo generado en alembic/versions/ y aplicarla
+alembic upgrade head
 ```
 
 ---
