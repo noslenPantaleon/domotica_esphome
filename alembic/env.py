@@ -7,11 +7,11 @@ from src.config.settings import settings
 from src.database.mysql import Base
 
 # Import all models so Alembic can detect them
-from src.clientes.models import Cliente
-from src.ubicaciones.models import Ubicacion
-from src.usuarios.models import Usuario
-from src.facturacion.models import Facturacion
-from src.dispositivos.models import ClienteDispositivo
+from src.clients.models import Client
+from src.locations.models import Location
+from src.users.models import User
+from src.billing.models import Invoice
+from src.devices.models import ClientDevice
 
 config = context.config
 

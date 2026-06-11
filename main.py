@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
 app = FastAPI(
-    title="Domótica API",
+    title="Domotica API",
     description="API for IoT domotics system — ESPHome + MQTT + aioesphomeapi",
     version="1.0.0"
 )
@@ -17,11 +17,11 @@ app.add_middleware(
 )
 
 # Register all models with SQLAlchemy so relationship strings resolve at startup
-from src.clientes.models import Cliente              # noqa: F401
-from src.ubicaciones.models import Ubicacion         # noqa: F401
-from src.usuarios.models import Usuario              # noqa: F401
-from src.facturacion.models import Facturacion       # noqa: F401
-from src.dispositivos.models import ClienteDispositivo  # noqa: F401
+from src.clients.models import Client          # noqa: F401
+from src.locations.models import Location      # noqa: F401
+from src.users.models import User              # noqa: F401
+from src.billing.models import Invoice         # noqa: F401
+from src.devices.models import ClientDevice    # noqa: F401
 
 # Schema is managed by Alembic — run: alembic upgrade head
 
@@ -40,20 +40,20 @@ except Exception as e:
 
 # Routers
 from src.auth.router import router as auth_router
-from src.usuarios.router import router as usuarios_router
-from src.clientes.router import router as clientes_router
-from src.facturacion.router import router as facturacion_router
-from src.ubicaciones.router import router as ubicaciones_router
-from src.dispositivos.router import router as dispositivos_router
+from src.users.router import router as users_router
+from src.clients.router import router as clients_router
+from src.billing.router import router as billing_router
+from src.locations.router import router as locations_router
+from src.devices.router import router as devices_router
 from src.mqtt.router import router as mqtt_router
 
-app.include_router(auth_router,        prefix="/auth",        tags=["auth"])
-app.include_router(usuarios_router,    prefix="/usuarios",    tags=["usuarios"])
-app.include_router(clientes_router,    prefix="/clientes",    tags=["clientes"])
-app.include_router(facturacion_router, prefix="/facturacion", tags=["facturacion"])
-app.include_router(ubicaciones_router, prefix="/ubicaciones", tags=["ubicaciones"])
-app.include_router(dispositivos_router,prefix="/dispositivos",tags=["dispositivos"])
-app.include_router(mqtt_router,        prefix="/mqtt",        tags=["mqtt"])
+app.include_router(auth_router,      prefix="/auth",      tags=["auth"])
+app.include_router(users_router,     prefix="/users",     tags=["users"])
+app.include_router(clients_router,   prefix="/clients",   tags=["clients"])
+app.include_router(billing_router,   prefix="/billing",   tags=["billing"])
+app.include_router(locations_router, prefix="/locations", tags=["locations"])
+app.include_router(devices_router,   prefix="/devices",   tags=["devices"])
+app.include_router(mqtt_router,      prefix="/mqtt",      tags=["mqtt"])
 
 
 @app.get("/", tags=["root"], include_in_schema=False)

@@ -7,7 +7,7 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    usuario_id: int
-    cliente_id: int
-    rol:        str
-    sub:        str  # email
+    user_id:   int
+    client_id: int
+    role:      str
+    sub:       str  # email
