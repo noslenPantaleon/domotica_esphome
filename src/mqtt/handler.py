@@ -1,11 +1,13 @@
 import json
 import asyncio
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+
 import paho.mqtt.client as mqtt
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from src.config.settings import settings
 from src.database.mongodb import get_mongo_db
+from src.devices.mongo_schemas import SensorReading
 
 
 class MQTTHandler:
@@ -13,17 +15,23 @@ class MQTTHandler:
         self.client = mqtt.Client()
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
-        self.mongo_db = None
+        self.mongo_db: Optional[AsyncIOMotorDatabase] = None
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
 
     def on_connect(self, client, userdata, flags, rc):
         print(f"Connected to MQTT broker with result code {rc}")
         # Subscribe to topics
-        self.client.subscribe("domotica/sensores/#")
-        self.client.subscribe("domotica/actuadores/#")
+        self.client.subscribe("domotica/sensors/#")
+        self.client.subscribe("domotica/actuators/#")
 
     def on_message(self, client, userdata, msg):
         print(f"Received message on topic {msg.topic}: {msg.payload.decode()}")
-        asyncio.create_task(self.process_message(msg.topic, msg.payload.decode()))
+        if self.loop is None:
+            print("MQTT handler has no event loop bound — dropping message")
+            return
+        asyncio.run_coroutine_threadsafe(
+            self.process_message(msg.topic, msg.payload.decode()), self.loop
+        )
 
     async def process_message(self, topic: str, payload: str):
         try:
@@ -44,33 +52,63 @@ class MQTTHandler:
         except Exception as e:
             print(f"Error processing message: {e}")
 
-    async def handle_sensor_data(self, sensor_id: str, data: Dict[str, Any]):
-        if not self.mongo_db:
+    async def handle_sensor_data(self, device_id: str, data: Dict[str, Any]):
+        if self.mongo_db is None:
             self.mongo_db = await get_mongo_db()
 
-        # Store sensor reading
-        reading_doc = {
-            "sensor_id": int(sensor_id),
-            "timestamp": data.get("timestamp"),
-            **data
-        }
-        await self.mongo_db.sensor_readings.insert_one(reading_doc)
-        print(f"Stored sensor reading for sensor {sensor_id}")
+        reading = SensorReading(device_id=device_id, **data)
 
-    async def handle_actuator_data(self, actuator_id: str, data: Dict[str, Any]):
-        if not self.mongo_db:
+        # 1. Append the raw reading to the time-series log
+        await self.mongo_db.sensor_readings.insert_one(reading.model_dump())
+
+        # 2. Update the matching embedded sensor's current state on the device document
+        set_fields = {
+            "sensors.$[s].last_value":   reading.value,
+            "sensors.$[s].last_reading": reading.timestamp,
+        }
+        if "quality" in data:
+            set_fields["sensors.$[s].last_quality"] = data["quality"]
+
+        result = await self.mongo_db.devices.update_one(
+            {"_id": device_id, "sensors.sensor_name": reading.sensor_name},
+            {"$set": set_fields},
+            array_filters=[{"s.sensor_name": reading.sensor_name}],
+        )
+
+        if result.matched_count == 0:
+            # Device exists but has no embedded entry for this sensor yet — add one
+            new_sensor = {
+                "sensor_name":  reading.sensor_name,
+                "sensor_type":  reading.sensor_type,
+                "unit":         reading.unit,
+                "last_reading": reading.timestamp,
+                "last_value":   reading.value,
+                "last_quality": data.get("quality"),
+                "config":       None,
+            }
+            await self.mongo_db.devices.update_one(
+                {"_id": device_id},
+                {"$push": {"sensors": new_sensor}},
+            )
+
+        print(f"Stored sensor reading for device {device_id} / sensor {reading.sensor_name}")
+
+    async def handle_actuator_data(self, device_id: str, data: Dict[str, Any]):
+        if self.mongo_db is None:
             self.mongo_db = await get_mongo_db()
 
         # Store actuator log
         log_doc = {
-            "actuator_id": int(actuator_id),
+            "device_id": device_id,
             "timestamp": data.get("timestamp"),
             **data
         }
         await self.mongo_db.actuator_logs.insert_one(log_doc)
-        print(f"Stored actuator log for actuator {actuator_id}")
+        print(f"Stored actuator log for device {device_id}")
 
-    def start(self):
+    def start(self, loop: Optional[asyncio.AbstractEventLoop] = None):
+        self.loop = loop or asyncio.get_event_loop()
+
         if settings.mqtt_username:
             self.client.username_pw_set(settings.mqtt_username, settings.mqtt_password)
 

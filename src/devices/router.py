@@ -101,7 +101,7 @@ async def get_device_readings(
     if current_user.role != RoleEnum.admin and current_user.client_id != doc.get("client_id"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
-    cursor = mongo_db.sensor_readings.find({"device_id": device_id}).sort("timestamp", -1).limit(limit)
+    cursor = mongo_db.sensor_readings.find({"device_id": device_id}, {"_id": 0}).sort("timestamp", -1).limit(limit)
     return [reading async for reading in cursor]
 
 

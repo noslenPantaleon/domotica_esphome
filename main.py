@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
@@ -26,17 +28,22 @@ from src.devices.models import ClientDevice    # noqa: F401
 # Schema is managed by Alembic — run: alembic upgrade head
 
 # MQTT
-try:
-    from src.mqtt.handler import mqtt_handler
-    mqtt_handler.start()
-    print("MQTT handler started")
+from src.mqtt.handler import mqtt_handler
 
-    @app.on_event("shutdown")
-    def shutdown_event():
-        mqtt_handler.stop()
-        print("MQTT handler stopped")
-except Exception as e:
-    print(f"MQTT init failed: {e}")
+
+@app.on_event("startup")
+async def startup_mqtt():
+    try:
+        mqtt_handler.start(asyncio.get_running_loop())
+        print("MQTT handler started")
+    except Exception as e:
+        print(f"MQTT init failed: {e}")
+
+
+@app.on_event("shutdown")
+def shutdown_mqtt():
+    mqtt_handler.stop()
+    print("MQTT handler stopped")
 
 # Routers
 from src.auth.router import router as auth_router
