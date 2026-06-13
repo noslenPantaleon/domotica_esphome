@@ -44,14 +44,14 @@ ESPHome  <---------------------->  FastAPI  (aioesphomeapi)
 
 ## Arquitectura
 
-| Capa | Tecnologia | Rol |
-|---|---|---|
-| API | FastAPI 0.136 | Framework principal, documentacion automatica |
-| Base de datos relacional | MySQL + SQLAlchemy | Clientes, usuarios, dispositivos, facturación |
-| Base de datos documental | MongoDB + Motor | Documentos de dispositivos, lecturas de sensores |
-| Mensajeria | MQTT (paho-mqtt) | Eventos en tiempo real desde dispositivos |
-| Autenticacion | JWT (python-jose) | Tokens de acceso con roles |
-| Migraciones | Alembic | Control de versiones del esquema MySQL |
+| Capa                     | Tecnologia         | Rol                                              |
+| ------------------------ | ------------------ | ------------------------------------------------ |
+| API                      | FastAPI 0.136      | Framework principal, documentacion automatica    |
+| Base de datos relacional | MySQL + SQLAlchemy | Clientes, usuarios, dispositivos, facturación    |
+| Base de datos documental | MongoDB + Motor    | Documentos de dispositivos, lecturas de sensores |
+| Mensajeria               | MQTT (paho-mqtt)   | Eventos en tiempo real desde dispositivos        |
+| Autenticacion            | JWT (python-jose)  | Tokens de acceso con roles                       |
+| Migraciones              | Alembic            | Control de versiones del esquema MySQL           |
 
 ---
 
@@ -210,6 +210,7 @@ python seed.py
 ```
 
 Esto crea:
+
 - Un cliente base llamado `Mi Empresa`
 - Un usuario administrador con email `admin@domotic.com` y password `admin1234`
 
@@ -287,88 +288,88 @@ backend/
 
 ### Autenticacion
 
-| Metodo | Ruta | Descripcion | Acceso |
-|---|---|---|---|
-| POST | `/auth/login` | Login con email y password, retorna JWT | Publico |
-| GET | `/auth/me` | Retorna el usuario autenticado actual | Autenticado |
+| Metodo | Ruta          | Descripcion                             | Acceso      |
+| ------ | ------------- | --------------------------------------- | ----------- |
+| POST   | `/auth/login` | Login con email y password, retorna JWT | Publico     |
+| GET    | `/auth/me`    | Retorna el usuario autenticado actual   | Autenticado |
 
 ### Clientes
 
-| Metodo | Ruta | Descripcion | Acceso |
-|---|---|---|---|
-| GET | `/clientes/` | Listar todos los clientes | Admin |
-| GET | `/clientes/{id}` | Obtener un cliente | Admin / propio cliente |
-| POST | `/clientes/` | Crear cliente | Admin |
-| PUT | `/clientes/{id}` | Actualizar cliente | Admin |
-| DELETE | `/clientes/{id}` | Eliminar cliente (cascada) | Admin |
+| Metodo | Ruta             | Descripcion                | Acceso                 |
+| ------ | ---------------- | -------------------------- | ---------------------- |
+| GET    | `/clientes/`     | Listar todos los clientes  | Admin                  |
+| GET    | `/clientes/{id}` | Obtener un cliente         | Admin / propio cliente |
+| POST   | `/clientes/`     | Crear cliente              | Admin                  |
+| PUT    | `/clientes/{id}` | Actualizar cliente         | Admin                  |
+| DELETE | `/clientes/{id}` | Eliminar cliente (cascada) | Admin                  |
 
 ### Usuarios
 
-| Metodo | Ruta | Descripcion | Acceso |
-|---|---|---|---|
-| GET | `/usuarios/` | Listar usuarios | Admin |
-| GET | `/usuarios/{id}` | Obtener un usuario | Admin / propio |
-| POST | `/usuarios/` | Crear usuario | Admin |
-| PUT | `/usuarios/{id}` | Actualizar usuario | Admin / propio |
-| DELETE | `/usuarios/{id}` | Eliminar usuario | Admin |
+| Metodo | Ruta             | Descripcion        | Acceso         |
+| ------ | ---------------- | ------------------ | -------------- |
+| GET    | `/usuarios/`     | Listar usuarios    | Admin          |
+| GET    | `/usuarios/{id}` | Obtener un usuario | Admin / propio |
+| POST   | `/usuarios/`     | Crear usuario      | Admin          |
+| PUT    | `/usuarios/{id}` | Actualizar usuario | Admin / propio |
+| DELETE | `/usuarios/{id}` | Eliminar usuario   | Admin          |
 
 ### Ubicaciones
 
-| Metodo | Ruta | Descripcion | Acceso |
-|---|---|---|---|
-| GET | `/ubicaciones/` | Listar ubicaciones | Admin / Tecnico |
-| GET | `/ubicaciones/{id}` | Obtener una ubicacion | Autenticado |
-| POST | `/ubicaciones/` | Crear ubicacion | Admin |
-| PUT | `/ubicaciones/{id}` | Actualizar ubicacion | Admin |
-| DELETE | `/ubicaciones/{id}` | Eliminar ubicacion | Admin |
+| Metodo | Ruta                | Descripcion           | Acceso          |
+| ------ | ------------------- | --------------------- | --------------- |
+| GET    | `/ubicaciones/`     | Listar ubicaciones    | Admin / Tecnico |
+| GET    | `/ubicaciones/{id}` | Obtener una ubicacion | Autenticado     |
+| POST   | `/ubicaciones/`     | Crear ubicacion       | Admin           |
+| PUT    | `/ubicaciones/{id}` | Actualizar ubicacion  | Admin           |
+| DELETE | `/ubicaciones/{id}` | Eliminar ubicacion    | Admin           |
 
 ### Facturacion
 
-| Metodo | Ruta | Descripcion | Acceso |
-|---|---|---|---|
-| GET | `/facturacion/` | Listar facturas | Admin |
-| GET | `/facturacion/{id}` | Obtener una factura | Admin / cliente propio |
-| POST | `/facturacion/` | Crear factura | Admin |
-| PUT | `/facturacion/{id}` | Actualizar estado/monto | Admin |
-| DELETE | `/facturacion/{id}` | Eliminar factura | Admin |
+| Metodo | Ruta                | Descripcion             | Acceso                 |
+| ------ | ------------------- | ----------------------- | ---------------------- |
+| GET    | `/facturacion/`     | Listar facturas         | Admin                  |
+| GET    | `/facturacion/{id}` | Obtener una factura     | Admin / cliente propio |
+| POST   | `/facturacion/`     | Crear factura           | Admin                  |
+| PUT    | `/facturacion/{id}` | Actualizar estado/monto | Admin                  |
+| DELETE | `/facturacion/{id}` | Eliminar factura        | Admin                  |
 
 ### Dispositivos
 
-| Metodo | Ruta | Descripcion | Acceso |
-|---|---|---|---|
-| GET | `/dispositivos/` | Listar dispositivos del cliente | Autenticado |
-| GET | `/dispositivos/{id}` | Obtener un dispositivo (SQL + Mongo) | Autenticado |
-| POST | `/dispositivos/` | Registrar dispositivo | Admin / Tecnico |
-| PUT | `/dispositivos/{id}` | Actualizar dispositivo | Admin / Tecnico |
-| DELETE | `/dispositivos/{id}` | Eliminar dispositivo | Admin |
-| GET | `/dispositivos/{id}/sensores` | Listar sensores del dispositivo (Mongo) | Autenticado |
-| POST | `/dispositivos/{id}/sensores` | Agregar sensor al dispositivo | Admin / Tecnico |
+| Metodo | Ruta                          | Descripcion                             | Acceso          |
+| ------ | ----------------------------- | --------------------------------------- | --------------- |
+| GET    | `/dispositivos/`              | Listar dispositivos del cliente         | Autenticado     |
+| GET    | `/dispositivos/{id}`          | Obtener un dispositivo (SQL + Mongo)    | Autenticado     |
+| POST   | `/dispositivos/`              | Registrar dispositivo                   | Admin / Tecnico |
+| PUT    | `/dispositivos/{id}`          | Actualizar dispositivo                  | Admin / Tecnico |
+| DELETE | `/dispositivos/{id}`          | Eliminar dispositivo                    | Admin           |
+| GET    | `/dispositivos/{id}/sensores` | Listar sensores del dispositivo (Mongo) | Autenticado     |
+| POST   | `/dispositivos/{id}/sensores` | Agregar sensor al dispositivo           | Admin / Tecnico |
 
 ### MQTT
 
-| Metodo | Ruta | Descripcion | Acceso |
-|---|---|---|---|
-| GET | `/mqtt/status` | Estado de la conexion al broker | Autenticado |
-| POST | `/mqtt/publish/{topic}` | Publicar mensaje a un topico | Admin / Tecnico |
+| Metodo | Ruta                    | Descripcion                     | Acceso          |
+| ------ | ----------------------- | ------------------------------- | --------------- |
+| GET    | `/mqtt/status`          | Estado de la conexion al broker | Autenticado     |
+| POST   | `/mqtt/publish/{topic}` | Publicar mensaje a un topico    | Admin / Tecnico |
 
 ---
 
 ## Topicos MQTT
 
-| Topico | Direccion | Descripcion |
-|---|---|---|
-| `domotica/sensores/{dispositivo_id}` | ESPHome -> API | Lectura de sensores |
+| Topico                                 | Direccion      | Descripcion           |
+| -------------------------------------- | -------------- | --------------------- |
+| `domotica/sensores/{dispositivo_id}`   | ESPHome -> API | Lectura de sensores   |
 | `domotica/actuadores/{dispositivo_id}` | API -> ESPHome | Comandos a actuadores |
 
 ---
 
 ## Roles y permisos
 
-| Rol | Descripcion |
-|---|---|
-| `admin` | Acceso total: gestiona clientes, usuarios, dispositivos y facturación |
-| `tecnico` | Puede ver y operar dispositivos, no gestiona clientes ni facturación |
-| `visualizador` | Solo lectura sobre los dispositivos de su cliente |
+| Rol            | Descripcion                                                           |
+| -------------- | --------------------------------------------------------------------- |
+| `admin`        | Acceso total: gestiona clientes, usuarios, dispositivos y facturación |
+| `tecnico`      | Puede ver y operar dispositivos, no gestiona clientes ni facturación  |
+| `visualizador` | Solo lectura sobre los dispositivos de su cliente                     |
 
 ---
 
