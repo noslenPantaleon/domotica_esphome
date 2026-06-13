@@ -11,7 +11,7 @@ async def get_mqtt_status():
     }
 
 
-@router.post("/publish/{topic}")
+@router.post("/publish/{topic:path}")
 async def publish_message(topic: str, payload: dict):
     mqtt_handler.publish(f"domotica/{topic}", payload)
     return {"message": f"Published to domotica/{topic}"}
