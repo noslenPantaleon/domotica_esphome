@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     mqtt_username: str = ""
     mqtt_password: str = ""
 
+    # ESPHome Native API
+    esphome_default_port: int = 6053
+    esphome_default_password: str = ""
+
     model_config = {
         "env_file": (".env", f".env.{_env}"),  # specific env overrides base
         "extra": "ignore",
