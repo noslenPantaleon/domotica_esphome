@@ -7,9 +7,9 @@ from src.database.mysql import Base
 
 
 class RoleEnum(str, enum.Enum):
-    admin     = "admin"
+    admin = "admin"
     technician = "technician"
-    viewer    = "viewer"
+    viewer = "viewer"
 
 
 class User(Base):

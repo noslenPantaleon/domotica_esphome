@@ -1,5 +1,6 @@
 import enum
 from sqlalchemy import Column, Integer, String, Date, Numeric, ForeignKey, Enum
+from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
 from src.database.mysql import Base
@@ -22,4 +23,5 @@ class Invoice(Base):
     status         = Column(Enum(InvoiceStatusEnum), default=InvoiceStatusEnum.pending, nullable=False)
     payment_method = Column(String(50), nullable=True)
 
+    # Relación opcional para acceder al cliente desde la factura
     client = relationship("Client", back_populates="invoices")
