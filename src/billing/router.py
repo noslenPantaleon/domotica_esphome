@@ -10,53 +10,32 @@ from src.billing.schemas import InvoiceCreate, InvoiceUpdate, InvoiceResponse
 
 router = APIRouter()
 
-# GET /facturacion/ - Listar facturas (Admin)
 @router.get("/", response_model=List[InvoiceResponse])
-def list_invoices(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_role(RoleEnum.admin))
-):
+def list_invoices(db: Session = Depends(get_db), _: User = Depends(require_role(RoleEnum.admin))):
     return db.query(Invoice).all()
 
-# GET /facturacion/{id} - Obtener una factura (Admin / Cliente propio)
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
-def get_invoice(
-    invoice_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+def get_invoice(invoice_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura no encontrada")
     
-    # Lógica de acceso: Admin o el dueño de la factura
     if current_user.role != RoleEnum.admin and invoice.client_id != current_user.client_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado")
         
     return invoice
 
-# POST /facturacion/ - Crear factura (Admin)
 @router.post("/", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED)
-def create_invoice(
-    data: InvoiceCreate,
-    db: Session = Depends(get_db),
-    _: User = Depends(require_role(RoleEnum.admin))
-):
+def create_invoice(data: InvoiceCreate, db: Session = Depends(get_db), _: User = Depends(require_role(RoleEnum.admin))):
     new_invoice = Invoice(**data.model_dump())
     db.add(new_invoice)
     db.commit()
     db.refresh(new_invoice)
     return new_invoice
 
-# PUT /facturacion/{id} - Actualizar estado/monto (Admin)
 @router.put("/{invoice_id}", response_model=InvoiceResponse)
-def update_invoice(
-    invoice_id: int,
-    data: InvoiceUpdate,
-    db: Session = Depends(get_db),
-    _: User = Depends(require_role(RoleEnum.admin))
-):
-    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+def update_invoice(invoice_id: int, data: InvoiceUpdate, db: Session = Depends(get_db), _: User = Depends(require_role(RoleEnum.admin))):
+    invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura no encontrada")
     
@@ -67,14 +46,9 @@ def update_invoice(
     db.refresh(invoice)
     return invoice
 
-# DELETE /facturacion/{id} - Eliminar factura (Admin)
 @router.delete("/{invoice_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_invoice(
-    invoice_id: int,
-    db: Session = Depends(get_db),
-    _: User = Depends(require_role(RoleEnum.admin))
-):
-    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+def delete_invoice(invoice_id: int, db: Session = Depends(get_db), _: User = Depends(require_role(RoleEnum.admin))):
+    invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura no encontrada")
     

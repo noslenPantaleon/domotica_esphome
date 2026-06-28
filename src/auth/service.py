@@ -2,8 +2,12 @@ from datetime import datetime, timedelta
 from jose import jwt
 from src.config.settings import settings
 
-# Importamos las funciones que gestionan la seguridad con argon2
+# Importamos desde el núcleo de seguridad
 from src.core.security import get_password_hash, verify_password
+
+# ELIMINAMOS las funciones get_password_hash y verify_password locales 
+# porque ya las estás importando de security.py. 
+# Si necesitas usarlas en otros archivos, impórtalas directamente de 'src.core.security'.
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     payload = data.copy()
@@ -14,6 +18,3 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
 
 def decode_access_token(token: str) -> dict:
     return jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-
-# Ya no necesitamos definir get_password_hash y verify_password aquí,
-# porque ahora las importamos y usamos directamente desde src.core.security.

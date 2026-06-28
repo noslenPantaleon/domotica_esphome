@@ -4,19 +4,25 @@
 # se define una función para verificar contraseñas y otra para generar hashes de contraseñas utilizando el algoritmo Bcrypt, 
 # que es conocido por su seguridad y resistencia a ataques de fuerza bruta.
 
-# [MODIFICACIÓN 2026-06-25]: Se cambió bcrypt por argon2 debido a 
-# incompatibilidades de passlib en Python 3.13. 
-# Se eliminó la dependencia de bcrypt para mayor estabilidad.
-
 from passlib.context import CryptContext
 
-# Usamos argon2 como esquema principal, es moderno y sin las limitaciones de bcrypt
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+# Ajustamos la configuración para que passlib gestione el backend de forma más estricta
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__ident="2a"  # Forzamos una identificación de versión compatible
+)
 
 def get_password_hash(password: str) -> str:
-    """Genera un hash seguro usando Argon2."""
+    # Truncar a 72 bytes es una excelente práctica para bcrypt
+    if len(password.encode('utf-8')) > 72:
+        password = password[:72]
+        
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifica una contraseña contra un hash existente."""
+    # Truncar también durante la verificación para evitar errores de longitud
+    if len(plain_password.encode('utf-8')) > 72:
+        plain_password = plain_password[:72]
+        
     return pwd_context.verify(plain_password, hashed_password)
