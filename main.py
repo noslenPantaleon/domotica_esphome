@@ -2,7 +2,6 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
-from src.users.router import router as users_router
 
 # Importamos la verificación de MongoDB Atlas
 from src.database.mongodb import check_mongo_connection
