@@ -56,12 +56,18 @@ class MQTTHandler:
         if self.mongo_db is None:
             self.mongo_db = await get_mongo_db()
 
+        # Si el ESP32 no manda timestamp, se lo inyectamos con la hora UTC actual del servidor
+        if "timestamp" not in data or not data["timestamp"]:
+            from datetime import datetime
+            data["timestamp"] = datetime.utcnow()
+
+        # Ahora instanciamos con total seguridad de que no fallará por falta de fecha
         reading = SensorReading(device_id=device_id, **data)
 
-        # 1. Append the raw reading to the time-series log
+        # 1. Guardar en el histórico (Time-series log)
         await self.mongo_db.sensor_readings.insert_one(reading.model_dump())
 
-        # 2. Update the matching embedded sensor's current state on the device document
+        # 2. Update el estado actual en el documento maestro del dispositivo
         set_fields = {
             "sensors.$[s].last_value":   reading.value,
             "sensors.$[s].last_reading": reading.timestamp,
@@ -76,7 +82,7 @@ class MQTTHandler:
         )
 
         if result.matched_count == 0:
-            # Device exists but has no embedded entry for this sensor yet — add one
+            # Si el dispositivo existe pero es la primera vez que lee este componente, lo agrega
             new_sensor = {
                 "sensor_name":  reading.sensor_name,
                 "sensor_type":  reading.sensor_type,
