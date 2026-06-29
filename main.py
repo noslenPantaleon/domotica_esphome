@@ -1,8 +1,10 @@
 import asyncio
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+
+# Importamos la verificación de MongoDB Atlas
+from src.database.mongodb import check_mongo_connection
 
 app = FastAPI(
     title="Domotica API",
@@ -32,18 +34,23 @@ from src.mqtt.handler import mqtt_handler
 
 
 @app.on_event("startup")
-async def startup_mqtt():
+async def startup_services():
+    # 1. Inicialización de MQTT
     try:
         mqtt_handler.start(asyncio.get_running_loop())
         print("MQTT handler started")
     except Exception as e:
         print(f"MQTT init failed: {e}")
 
+    # 2. Verificación asíncrona de MongoDB Atlas
+    await check_mongo_connection()
+
 
 @app.on_event("shutdown")
 def shutdown_mqtt():
     mqtt_handler.stop()
     print("MQTT handler stopped")
+
 
 # Routers
 from src.auth.router import router as auth_router
