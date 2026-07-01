@@ -1,6 +1,6 @@
 # Domótica API
 
-API REST para un sistema de domótica IoT basado en dispositivos **ESPHome** y comunicación **MQTT**. Permite gestionar clientes, usuarios, dispositivos, ubicaciones y facturación, integrando **MySQL** para datos relacionales y **MongoDB** para datos de sensores en tiempo real.
+API REST para un sistema de domótica IoT basado en dispositivos **ESPHome** y comunicación **MQTT** y **API nativa ESPHome**. Permite gestionar clientes, usuarios, dispositivos, ubicaciones y facturación, integrando **MySQL** para datos relacionales y **MongoDB** para datos de sensores en tiempo real.
 
 ---
 
@@ -17,6 +17,7 @@ API REST para un sistema de domótica IoT basado en dispositivos **ESPHome** y c
 - [Ejecutar el servidor](#ejecutar-el-servidor)
 - [Estructura del proyecto](#estructura-del-proyecto)
 - [Rutas de la API](#rutas-de-la-api)
+- [Integracion ESPHome nativa](#integracion-esphome-nativa)
 - [Topicos MQTT](#topicos-mqtt)
 - [Roles y permisos](#roles-y-permisos)
 
@@ -28,30 +29,37 @@ Este backend expone una API REST que actua como punto central de un sistema IoT 
 
 - Autenticar usuarios con JWT y control de acceso por roles.
 - Gestionar el modelo de negocio: clientes, ubicaciones, dispositivos y facturación.
-- Recibir datos de sensores/actuadores desde dispositivos ESPHome via MQTT.
+- Conectarse directamente a dispositivos ESPHome via **API nativa** (aioesphomeapi) para descubrir entidades y controlarlas en tiempo real.
+- Recibir datos de sensores/actuadores desde dispositivos ESPHome via **MQTT**.
 - Almacenar lecturas de sensores en MongoDB y metadatos relacionales en MySQL.
-- Exponer endpoints para que un frontend React consulte el estado de los dispositivos en tiempo real.
+- Exponer endpoints para que un frontend consulte el estado de los dispositivos en tiempo real.
 
 ```
-ESPHome  <---------------------->  FastAPI  (aioesphomeapi)
-   |                                   |
-   |------- MQTT (eventos) ----------->|
-               (broker)                |
-                                   React / Cliente
+ESPHome device
+     |
+     |--- Native API (TCP :6053) ---> FastAPI (aioesphomeapi)  <--- control commands
+     |
+     |--- MQTT (eventos) -----------> Broker MQTT --> FastAPI (paho-mqtt)
+                                                          |
+                                                       MongoDB
+                                                       MySQL
+                                                          |
+                                                   React / Cliente
 ```
 
 ---
 
 ## Arquitectura
 
-| Capa                     | Tecnologia         | Rol                                              |
-| ------------------------ | ------------------ | ------------------------------------------------ |
-| API                      | FastAPI 0.136      | Framework principal, documentacion automatica    |
-| Base de datos relacional | MySQL + SQLAlchemy | Clientes, usuarios, dispositivos, facturación    |
-| Base de datos documental | MongoDB + Motor    | Documentos de dispositivos, lecturas de sensores |
-| Mensajeria               | MQTT (paho-mqtt)   | Eventos en tiempo real desde dispositivos        |
-| Autenticacion            | JWT (python-jose)  | Tokens de acceso con roles                       |
-| Migraciones              | Alembic            | Control de versiones del esquema MySQL           |
+| Capa                     | Tecnologia              | Rol                                                        |
+| ------------------------ | ----------------------- | ---------------------------------------------------------- |
+| API                      | FastAPI 0.136           | Framework principal, documentacion automatica              |
+| Base de datos relacional | MySQL + SQLAlchemy      | Clientes, usuarios, dispositivos, facturación              |
+| Base de datos documental | MongoDB + Motor         | Documentos de dispositivos, lecturas de sensores           |
+| Mensajeria               | MQTT (paho-mqtt)        | Eventos en tiempo real desde dispositivos                  |
+| Control nativo IoT       | aioesphomeapi           | Conexion directa a dispositivos ESPHome, control y estados |
+| Autenticacion            | JWT (python-jose)       | Tokens de acceso con roles                                 |
+| Migraciones              | Alembic                 | Control de versiones del esquema MySQL                     |
 
 ---
 
@@ -61,6 +69,7 @@ ESPHome  <---------------------->  FastAPI  (aioesphomeapi)
 - MySQL 8.0+
 - MongoDB 6.0+
 - Broker MQTT (Mosquitto recomendado)
+- Dispositivos ESPHome con `api:` habilitado en su configuracion YAML
 - Git
 
 ---
@@ -103,11 +112,20 @@ sudo systemctl start mongod
 
 2. No es necesario crear la base de datos manualmente. MongoDB crea `domotic` automáticamente al insertar el primer documento.
 
+Las colecciones creadas automaticamente son:
+
+| Coleccion          | Contenido                                              |
+| ------------------ | ------------------------------------------------------ |
+| `devices`          | Documentos de dispositivos con sensores embebidos      |
+| `sensor_readings`  | Serie de tiempo de lecturas MQTT                       |
+| `actuator_logs`    | Logs de actuadores via MQTT                            |
+| `esphome_states`   | Ultimo estado de cada entidad ESPHome (upsert)         |
+| `esphome_readings` | Serie de tiempo de estados ESPHome (API nativa)        |
+
 ### MQTT (Mosquitto)
 
 ```bash
 # Windows — instalar desde https://mosquitto.org/download/
-# Iniciar el servicio
 net start mosquitto
 ```
 
@@ -145,6 +163,7 @@ DATABASE_URL=mysql+pymysql://root:tu_password@localhost/domotic
 
 # Base de datos MongoDB
 MONGODB_URL=mongodb://localhost:27017/domotic
+MONGO_DB_NAME=domotic
 
 # JWT
 SECRET_KEY=cambia-esta-clave-en-produccion
@@ -156,7 +175,13 @@ MQTT_BROKER=localhost
 MQTT_PORT=1883
 MQTT_USERNAME=
 MQTT_PASSWORD=
+
+# ESPHome API nativa
+ESPHOME_DEFAULT_PORT=6053
+ESPHOME_DEFAULT_PASSWORD=
 ```
+
+Para produccion con SSL en MySQL, agregar `?ssl-mode=REQUIRED` al `DATABASE_URL`. El engine lo convierte automaticamente al formato que entiende PyMySQL.
 
 > El archivo `.env` esta en `.gitignore` y nunca debe subirse al repositorio.
 
@@ -174,12 +199,10 @@ Con la base de datos `domotic` ya creada y el archivo `.env` configurado, aplica
 alembic upgrade head
 ```
 
-Esto crea las tablas `clientes`, `ubicaciones`, `usuarios`, `facturacion` y `cliente_dispositivos`. Solo despues de este paso se puede ejecutar `seed.py`.
-
 ### Comandos de uso frecuente
 
 ```bash
-# Ver el estado actual (revision aplicada)
+# Ver el estado actual
 alembic current
 
 # Ver historial de migraciones
@@ -192,10 +215,7 @@ alembic downgrade -1
 ### Al modificar un modelo
 
 ```bash
-# 1. Generar una nueva migracion a partir de los cambios en los modelos
 alembic revision --autogenerate -m "descripcion_del_cambio"
-
-# 2. Revisar el archivo generado en alembic/versions/ y aplicarla
 alembic upgrade head
 ```
 
@@ -221,6 +241,8 @@ Esto crea:
 ## Ejecutar el servidor
 
 ```bash
+python run.py
+# o directamente:
 uvicorn main:app --reload --port 8000
 ```
 
@@ -228,7 +250,6 @@ La documentacion interactiva estara disponible en:
 
 - **Swagger UI**: `http://localhost:8000/docs`
 - **ReDoc**: `http://localhost:8000/redoc`
-- **OpenAPI JSON**: `http://localhost:8000/openapi.json`
 
 ---
 
@@ -236,14 +257,15 @@ La documentacion interactiva estara disponible en:
 
 ```
 backend/
-├── main.py                  # Punto de entrada de la aplicacion
+├── main.py                  # Punto de entrada, startup/shutdown de servicios
+├── run.py                   # Lanzador uvicorn
 ├── seed.py                  # Script de datos iniciales
 ├── alembic.ini              # Configuracion de Alembic
 ├── requirements.txt
 ├── .env                     # Variables de entorno (no subir a git)
 ├── .gitignore
 ├── alembic/
-│   ├── env.py               # Configuracion de migraciones
+│   ├── env.py
 │   └── versions/            # Archivos de migracion generados
 └── src/
     ├── config/
@@ -256,30 +278,34 @@ backend/
     │   ├── service.py        # Hash de passwords, creacion de JWT
     │   ├── schemas.py        # Token, TokenData
     │   └── dependencies.py   # get_current_user, require_role
-    ├── clientes/
-    │   ├── models.py         # Modelo SQLAlchemy Cliente
-    │   ├── schemas.py        # ClienteCreate, ClienteUpdate, ClienteResponse
-    │   └── router.py         # CRUD /clientes
-    ├── usuarios/
-    │   ├── models.py         # Modelo SQLAlchemy Usuario (con RolEnum)
-    │   ├── schemas.py        # UsuarioCreate, UsuarioUpdate, UsuarioResponse
-    │   └── router.py         # CRUD /usuarios
-    ├── ubicaciones/
-    │   ├── models.py         # Modelo SQLAlchemy Ubicacion
-    │   ├── schemas.py        # UbicacionCreate, UbicacionUpdate, UbicacionResponse
-    │   └── router.py         # CRUD /ubicaciones
-    ├── facturacion/
-    │   ├── models.py         # Modelo SQLAlchemy Facturacion (con EstadoFacturaEnum)
-    │   ├── schemas.py        # FacturacionCreate, FacturacionUpdate, FacturacionResponse
-    │   └── router.py         # CRUD /facturacion
-    ├── dispositivos/
-    │   ├── models.py         # Modelo SQLAlchemy ClienteDispositivo
-    │   ├── schemas.py        # ClienteDispositivoCreate, Response
+    ├── clients/
+    │   ├── models.py         # Modelo SQLAlchemy Client
+    │   ├── schemas.py        # ClientCreate, ClientUpdate, ClientResponse
+    │   └── router.py         # CRUD /clients
+    ├── users/
+    │   ├── models.py         # Modelo SQLAlchemy User (con RoleEnum)
+    │   ├── schemas.py        # UserCreate, UserUpdate, UserResponse
+    │   └── router.py         # CRUD /users
+    ├── locations/
+    │   ├── models.py         # Modelo SQLAlchemy Location
+    │   ├── schemas.py        # LocationCreate, LocationUpdate, LocationResponse
+    │   └── router.py         # CRUD /locations
+    ├── billing/
+    │   ├── models.py         # Modelo SQLAlchemy Invoice
+    │   ├── schemas.py        # InvoiceCreate, InvoiceUpdate, InvoiceResponse
+    │   └── router.py         # CRUD /billing
+    ├── devices/
+    │   ├── models.py         # Modelo SQLAlchemy ClientDevice
+    │   ├── schemas.py        # ClientDeviceCreate, ClientDeviceResponse
     │   ├── mongo_schemas.py  # Schemas Pydantic para documentos MongoDB
-    │   └── router.py         # CRUD /dispositivos
-    └── mqtt/
-        ├── handler.py        # Cliente MQTT, suscripcion a topicos
-        └── router.py         # GET /mqtt/status, POST /mqtt/publish
+    │   └── router.py         # CRUD /devices
+    ├── mqtt/
+    │   ├── handler.py        # Cliente MQTT, suscripcion a topicos, ingestion a MongoDB
+    │   └── router.py         # GET /mqtt/status, POST /mqtt/publish
+    └── esphome/
+        ├── manager.py        # ESPHomeManager: conexiones, entidades, estados, comandos
+        ├── schemas.py        # ESPHomeConnectRequest, ESPHomeSwitchCommand, etc.
+        └── router.py         # Endpoints /esphome
 ```
 
 ---
@@ -293,57 +319,59 @@ backend/
 | POST   | `/auth/login` | Login con email y password, retorna JWT | Publico     |
 | GET    | `/auth/me`    | Retorna el usuario autenticado actual   | Autenticado |
 
-### Clientes
+### Clients
 
-| Metodo | Ruta             | Descripcion                | Acceso                 |
-| ------ | ---------------- | -------------------------- | ---------------------- |
-| GET    | `/clientes/`     | Listar todos los clientes  | Admin                  |
-| GET    | `/clientes/{id}` | Obtener un cliente         | Admin / propio cliente |
-| POST   | `/clientes/`     | Crear cliente              | Admin                  |
-| PUT    | `/clientes/{id}` | Actualizar cliente         | Admin                  |
-| DELETE | `/clientes/{id}` | Eliminar cliente (cascada) | Admin                  |
+| Metodo | Ruta            | Descripcion                | Acceso                 |
+| ------ | --------------- | -------------------------- | ---------------------- |
+| GET    | `/clients/`     | Listar todos los clientes  | Admin                  |
+| GET    | `/clients/{id}` | Obtener un cliente         | Admin / propio cliente |
+| POST   | `/clients/`     | Crear cliente              | Admin                  |
+| PUT    | `/clients/{id}` | Actualizar cliente         | Admin                  |
+| DELETE | `/clients/{id}` | Eliminar cliente (cascada) | Admin                  |
 
-### Usuarios
+### Users
 
-| Metodo | Ruta             | Descripcion        | Acceso         |
-| ------ | ---------------- | ------------------ | -------------- |
-| GET    | `/usuarios/`     | Listar usuarios    | Admin          |
-| GET    | `/usuarios/{id}` | Obtener un usuario | Admin / propio |
-| POST   | `/usuarios/`     | Crear usuario      | Admin          |
-| PUT    | `/usuarios/{id}` | Actualizar usuario | Admin / propio |
-| DELETE | `/usuarios/{id}` | Eliminar usuario   | Admin          |
+| Metodo | Ruta          | Descripcion        | Acceso         |
+| ------ | ------------- | ------------------ | -------------- |
+| GET    | `/users/`     | Listar usuarios    | Admin          |
+| GET    | `/users/{id}` | Obtener un usuario | Admin / propio |
+| POST   | `/users/`     | Crear usuario      | Admin          |
+| PUT    | `/users/{id}` | Actualizar usuario | Admin / propio |
+| DELETE | `/users/{id}` | Eliminar usuario   | Admin          |
 
-### Ubicaciones
+### Locations
 
-| Metodo | Ruta                | Descripcion           | Acceso          |
-| ------ | ------------------- | --------------------- | --------------- |
-| GET    | `/ubicaciones/`     | Listar ubicaciones    | Admin / Tecnico |
-| GET    | `/ubicaciones/{id}` | Obtener una ubicacion | Autenticado     |
-| POST   | `/ubicaciones/`     | Crear ubicacion       | Admin           |
-| PUT    | `/ubicaciones/{id}` | Actualizar ubicacion  | Admin           |
-| DELETE | `/ubicaciones/{id}` | Eliminar ubicacion    | Admin           |
+| Metodo | Ruta               | Descripcion           | Acceso          |
+| ------ | ------------------ | --------------------- | --------------- |
+| GET    | `/locations/`      | Listar ubicaciones    | Admin / Tecnico |
+| GET    | `/locations/{id}`  | Obtener una ubicacion | Autenticado     |
+| POST   | `/locations/`      | Crear ubicacion       | Admin           |
+| PUT    | `/locations/{id}`  | Actualizar ubicacion  | Admin           |
+| DELETE | `/locations/{id}`  | Eliminar ubicacion    | Admin           |
 
-### Facturacion
+### Billing
 
-| Metodo | Ruta                | Descripcion             | Acceso                 |
-| ------ | ------------------- | ----------------------- | ---------------------- |
-| GET    | `/facturacion/`     | Listar facturas         | Admin                  |
-| GET    | `/facturacion/{id}` | Obtener una factura     | Admin / cliente propio |
-| POST   | `/facturacion/`     | Crear factura           | Admin                  |
-| PUT    | `/facturacion/{id}` | Actualizar estado/monto | Admin                  |
-| DELETE | `/facturacion/{id}` | Eliminar factura        | Admin                  |
+| Metodo | Ruta             | Descripcion             | Acceso                 |
+| ------ | ---------------- | ----------------------- | ---------------------- |
+| GET    | `/billing/`      | Listar facturas         | Admin                  |
+| GET    | `/billing/{id}`  | Obtener una factura     | Admin / cliente propio |
+| POST   | `/billing/`      | Crear factura           | Admin                  |
+| PUT    | `/billing/{id}`  | Actualizar estado/monto | Admin                  |
+| DELETE | `/billing/{id}`  | Eliminar factura        | Admin                  |
 
-### Dispositivos
+### Devices
 
-| Metodo | Ruta                          | Descripcion                             | Acceso          |
-| ------ | ----------------------------- | --------------------------------------- | --------------- |
-| GET    | `/dispositivos/`              | Listar dispositivos del cliente         | Autenticado     |
-| GET    | `/dispositivos/{id}`          | Obtener un dispositivo (SQL + Mongo)    | Autenticado     |
-| POST   | `/dispositivos/`              | Registrar dispositivo                   | Admin / Tecnico |
-| PUT    | `/dispositivos/{id}`          | Actualizar dispositivo                  | Admin / Tecnico |
-| DELETE | `/dispositivos/{id}`          | Eliminar dispositivo                    | Admin           |
-| GET    | `/dispositivos/{id}/sensores` | Listar sensores del dispositivo (Mongo) | Autenticado     |
-| POST   | `/dispositivos/{id}/sensores` | Agregar sensor al dispositivo           | Admin / Tecnico |
+| Metodo | Ruta                           | Descripcion                              | Acceso      |
+| ------ | ------------------------------ | ---------------------------------------- | ----------- |
+| GET    | `/devices/`                    | Listar client devices (SQL)              | Admin       |
+| GET    | `/devices/{id}`                | Obtener un client device                 | Autenticado |
+| POST   | `/devices/`                    | Registrar client device                  | Admin       |
+| PUT    | `/devices/{id}`                | Actualizar client device                 | Admin       |
+| DELETE | `/devices/{id}`                | Eliminar client device                   | Admin       |
+| POST   | `/devices/mongo`               | Crear documento de dispositivo (MongoDB) | Admin       |
+| GET    | `/devices/mongo`               | Listar documentos de dispositivos        | Autenticado |
+| GET    | `/devices/mongo/{device_id}`   | Obtener documento de dispositivo         | Autenticado |
+| GET    | `/devices/mongo/{device_id}/readings` | Lecturas recientes del dispositivo | Autenticado |
 
 ### MQTT
 
@@ -352,29 +380,230 @@ backend/
 | GET    | `/mqtt/status`          | Estado de la conexion al broker | Autenticado     |
 | POST   | `/mqtt/publish/{topic}` | Publicar mensaje a un topico    | Admin / Tecnico |
 
+### ESPHome (API nativa)
+
+| Metodo | Ruta                                       | Descripcion                                      | Acceso          |
+| ------ | ------------------------------------------ | ------------------------------------------------ | --------------- |
+| POST   | `/esphome/{device_id}/connect`             | Conectar a un dispositivo ESPHome                | Admin           |
+| DELETE | `/esphome/{device_id}/disconnect`          | Desconectar un dispositivo                       | Admin           |
+| GET    | `/esphome/status`                          | Listar todas las conexiones activas              | Autenticado     |
+| GET    | `/esphome/{device_id}/entities`            | Listar entidades del dispositivo                 | Autenticado     |
+| GET    | `/esphome/{device_id}/states`              | Ultimo estado de cada entidad (MongoDB)          | Autenticado     |
+| GET    | `/esphome/{device_id}/readings`            | Serie de tiempo de estados (MongoDB)             | Autenticado     |
+| POST   | `/esphome/{device_id}/switch/{key}/control`| Controlar un switch (encender/apagar)            | Admin / Tecnico |
+| POST   | `/esphome/{device_id}/light/{key}/control` | Controlar una luz (on/off, brillo, RGB)          | Admin / Tecnico |
+
+---
+
+## Integracion ESPHome nativa
+
+La integracion usa **aioesphomeapi** para conectarse directamente a los dispositivos ESPHome a traves de su API nativa (puerto TCP 6053). Esto permite descubrir entidades automaticamente y enviar comandos de control sin necesidad de MQTT.
+
+### Configuracion del dispositivo ESPHome
+
+El unico requisito en el YAML del dispositivo es habilitar el bloque `api:`:
+
+```yaml
+esphome:
+  name: esp32-001
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: arduino
+
+api:
+  password: ""   # dejar vacio o establecer una password
+
+ota:
+  - platform: esphome
+    password: ""
+
+wifi:
+  ssid: "TuRed"
+  password: "TuPassword"
+
+logger:
+
+# Ejemplo: switch GPIO
+switch:
+  - platform: gpio
+    pin: GPIO2
+    name: "LED"
+
+# Ejemplo: sensor de temperatura interno
+sensor:
+  - platform: internal_temperature
+    name: "CPU Temperature"
+    update_interval: 10s
+```
+
+> No se requiere configurar topicos ni estructuras de mensajes. ESPHome expone todas las entidades automaticamente via la API nativa.
+
+### Flujo de uso
+
+#### 1. Conectar al dispositivo
+
+Primero obtener el IP del dispositivo (via ping o DHCP del router):
+
+```bash
+ping esp32-001.local
+```
+
+Luego conectar desde la API:
+
+```http
+POST /esphome/ESP32_001/connect
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "host": "192.168.1.100",
+  "port": 6053,
+  "password": ""
+}
+```
+
+Respuesta:
+```json
+{
+  "device_id": "ESP32_001",
+  "host": "192.168.1.100",
+  "port": 6053,
+  "connected": true
+}
+```
+
+#### 2. Descubrir entidades
+
+```http
+GET /esphome/ESP32_001/entities
+Authorization: Bearer <token>
+```
+
+Respuesta:
+```json
+[
+  {
+    "key": 646037088,
+    "name": "LED",
+    "object_id": "led",
+    "entity_type": "switch",
+    "unit": null
+  },
+  {
+    "key": 1234567890,
+    "name": "CPU Temperature",
+    "object_id": "cpu_temperature",
+    "entity_type": "sensor",
+    "unit": "°C"
+  }
+]
+```
+
+> El campo `key` es el identificador numerico que se usa en los endpoints de control.
+
+#### 3. Controlar un switch
+
+```http
+POST /esphome/ESP32_001/switch/646037088/control
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "state": true }   # encender
+{ "state": false }  # apagar
+```
+
+#### 4. Controlar una luz RGB
+
+```http
+POST /esphome/ESP32_001/light/987654321/control
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "state": true,
+  "brightness": 0.8,
+  "red": 1.0,
+  "green": 0.0,
+  "blue": 0.5
+}
+```
+
+#### 5. Consultar estados almacenados en MongoDB
+
+Cada vez que el dispositivo envia un cambio de estado, se almacena automaticamente. Para ver el ultimo estado de cada entidad:
+
+```http
+GET /esphome/ESP32_001/states
+Authorization: Bearer <token>
+```
+
+Para ver el historial de estados (serie de tiempo):
+
+```http
+GET /esphome/ESP32_001/readings?limit=50
+Authorization: Bearer <token>
+```
+
+#### 6. Ver conexiones activas
+
+```http
+GET /esphome/status
+Authorization: Bearer <token>
+```
+
+Respuesta:
+```json
+[
+  {
+    "device_id": "ESP32_001",
+    "host": "192.168.1.100",
+    "port": 6053,
+    "connected": true
+  }
+]
+```
+
+### Diferencias entre MQTT y API nativa
+
+| Caracteristica         | MQTT                              | API nativa (aioesphomeapi)              |
+| ---------------------- | --------------------------------- | --------------------------------------- |
+| Protocolo              | Pub/Sub sobre TCP                 | Binario (protobuf) sobre TCP            |
+| Puerto                 | 1883                              | 6053                                    |
+| Descubrimiento         | Manual (topicos fijos)            | Automatico (list_entities_services)     |
+| Control de dispositivo | Publicar en topico de actuador    | Llamada directa (switch_command, etc.)  |
+| Configuracion ESPHome  | Requiere bloque `mqtt:` + topicos | Solo requiere bloque `api:`             |
+| Conexion               | Broker intermediario              | Directa dispositivo-servidor            |
+| Ambos pueden coexistir | Si                                | Si                                      |
+
 ---
 
 ## Topicos MQTT
 
-| Topico                                 | Direccion      | Descripcion           |
-| -------------------------------------- | -------------- | --------------------- |
-| `domotica/sensores/{dispositivo_id}`   | ESPHome -> API | Lectura de sensores   |
-| `domotica/actuadores/{dispositivo_id}` | API -> ESPHome | Comandos a actuadores |
+| Topico                              | Direccion      | Descripcion           |
+| ----------------------------------- | -------------- | --------------------- |
+| `domotica/sensors/{device_id}`      | ESPHome -> API | Lectura de sensores   |
+| `domotica/actuators/{device_id}`    | API -> ESPHome | Comandos a actuadores |
+
+### Estructura del mensaje MQTT (sensores)
+
+```json
+{
+  "sensor_name": "temperature",
+  "sensor_type": "dht",
+  "value": 23.5,
+  "unit": "°C"
+}
+```
 
 ---
 
 ## Roles y permisos
 
-| Rol            | Descripcion                                                           |
-| -------------- | --------------------------------------------------------------------- |
-| `admin`        | Acceso total: gestiona clientes, usuarios, dispositivos y facturación |
-| `tecnico`      | Puede ver y operar dispositivos, no gestiona clientes ni facturación  |
-| `visualizador` | Solo lectura sobre los dispositivos de su cliente                     |
-
----
-
-## Notas de desarrollo
-
-- Las rutas marcadas como **pendientes** en la tabla estan definidas como stubs y seran implementadas progresivamente.
-- Para agregar una nueva migracion tras modificar un modelo: `alembic revision --autogenerate -m "nombre"`.
-- La documentacion interactiva en `/docs` permite probar todos los endpoints directamente con autenticacion JWT.
+| Rol          | Descripcion                                                           |
+| ------------ | --------------------------------------------------------------------- |
+| `admin`      | Acceso total: gestiona clientes, usuarios, dispositivos y facturación |
+| `technician` | Puede ver y operar dispositivos, no gestiona clientes ni facturación  |
+| `viewer`     | Solo lectura sobre los dispositivos de su cliente                     |
