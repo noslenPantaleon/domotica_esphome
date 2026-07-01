@@ -32,6 +32,9 @@ from src.devices.models import ClientDevice    # noqa: F401
 # MQTT
 from src.mqtt.handler import mqtt_handler
 
+# ESPHome
+from src.esphome.manager import esphome_manager
+
 
 @app.on_event("startup")
 async def startup_services():
@@ -47,9 +50,12 @@ async def startup_services():
 
 
 @app.on_event("shutdown")
-def shutdown_mqtt():
+async def shutdown_services():
     mqtt_handler.stop()
     print("MQTT handler stopped")
+
+    await esphome_manager.disconnect_all()
+    print("ESPHome manager stopped")
 
 
 # Routers
@@ -60,6 +66,7 @@ from src.billing.router import router as billing_router
 from src.locations.router import router as locations_router
 from src.devices.router import router as devices_router
 from src.mqtt.router import router as mqtt_router
+from src.esphome.router import router as esphome_router
 
 app.include_router(auth_router,      prefix="/auth",      tags=["auth"])
 app.include_router(users_router,     prefix="/users",     tags=["users"])
@@ -68,6 +75,7 @@ app.include_router(billing_router,   prefix="/billing",   tags=["billing"])
 app.include_router(locations_router, prefix="/locations", tags=["locations"])
 app.include_router(devices_router,   prefix="/devices",   tags=["devices"])
 app.include_router(mqtt_router,      prefix="/mqtt",      tags=["mqtt"])
+app.include_router(esphome_router,   prefix="/esphome",   tags=["esphome"])
 
 
 @app.get("/", tags=["root"], include_in_schema=False)
