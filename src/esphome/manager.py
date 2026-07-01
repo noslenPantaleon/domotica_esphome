@@ -67,8 +67,8 @@ class ESPHomeManager:
         conn = _Connection(client, host, port)
         await self._load_entities(conn)
 
-        # subscribe_states callback runs inside the event loop
-        await client.subscribe_states(
+        # subscribe_states is synchronous in aioesphomeapi v10+
+        client.subscribe_states(
             lambda state: asyncio.ensure_future(self._on_state(device_id, state))
         )
 
@@ -122,11 +122,11 @@ class ESPHomeManager:
 
     # ── Device commands ─────────────────────────────────────────────────────
 
-    async def switch_command(self, device_id: str, key: int, state: bool) -> None:
+    def switch_command(self, device_id: str, key: int, state: bool) -> None:
         client = self._get_client(device_id)
-        await client.switch_command(key=key, state=state)
+        client.switch_command(key=key, state=state)
 
-    async def light_command(
+    def light_command(
         self,
         device_id:  str,
         key:        int,
@@ -144,7 +144,7 @@ class ESPHomeManager:
         if green       is not None: kwargs["green"]             = green
         if blue        is not None: kwargs["blue"]              = blue
         if color_temp  is not None: kwargs["color_temperature"] = color_temp
-        await client.light_command(**kwargs)
+        client.light_command(**kwargs)
 
     # ── Internal ────────────────────────────────────────────────────────────
 

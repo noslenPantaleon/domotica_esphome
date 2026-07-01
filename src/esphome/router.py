@@ -105,13 +105,13 @@ async def control_switch(
     device_id: str,
     key:       int,
     body:      ESPHomeSwitchCommand,
-    _:         User = Depends(require_role(RoleEnum.technician)),
+    _:         User = Depends(require_role(RoleEnum.admin, RoleEnum.technician)),
 ):
     """Turn a switch on or off. Requires technician role or above."""
     if not esphome_manager.is_connected(device_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not connected")
     try:
-        await esphome_manager.switch_command(device_id, key, body.state)
+        esphome_manager.switch_command(device_id, key, body.state)
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
     return {"device_id": device_id, "key": key, "state": body.state}
@@ -128,7 +128,7 @@ async def control_light(
     if not esphome_manager.is_connected(device_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not connected")
     try:
-        await esphome_manager.light_command(
+        esphome_manager.light_command(
             device_id,
             key,
             body.state,
