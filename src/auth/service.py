@@ -1,13 +1,18 @@
 from datetime import datetime, timedelta
+
+import bcrypt
 from jose import jwt
+
 from src.config.settings import settings
 
-# Importamos desde el núcleo de seguridad
-from src.core.security import get_password_hash, verify_password
 
-# ELIMINAMOS las funciones get_password_hash y verify_password locales 
-# porque ya las estás importando de security.py. 
-# Si necesitas usarlas en otros archivos, impórtalas directamente de 'src.core.security'.
+def get_password_hash(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
+
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     payload = data.copy()

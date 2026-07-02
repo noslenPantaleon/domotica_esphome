@@ -19,7 +19,8 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Override URL from settings (keeps credentials out of alembic.ini)
+# Override URL from settings — reuse the same ssl-mode fix from mysql.py
+from src.database.mysql import _build_engine  # reuse URL-cleaning logic
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 target_metadata = Base.metadata
@@ -38,11 +39,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    connectable = _build_engine()
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
