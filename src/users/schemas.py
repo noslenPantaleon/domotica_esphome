@@ -1,30 +1,25 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 from typing import Optional
-
 from src.users.models import RoleEnum
 
-
 class UserBase(BaseModel):
-    name:      str
-    email:     EmailStr
-    role:      RoleEnum
+    name: str
+    email: EmailStr
+    role: RoleEnum
     client_id: int
-
 
 class UserCreate(UserBase):
     password: str
 
-
 class UserUpdate(BaseModel):
-    name:     Optional[str]      = None
-    email:    Optional[EmailStr] = None
-    role:     Optional[RoleEnum] = None
-    password: Optional[str]      = None
-
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    role: Optional[RoleEnum] = None
+    password: Optional[str] = None
 
 class UserResponse(UserBase):
-    user_id:    int
+    user_id: int  # Coherente con client_id
     created_at: datetime
     last_login: Optional[datetime] = None
 

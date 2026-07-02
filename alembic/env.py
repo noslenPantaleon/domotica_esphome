@@ -5,6 +5,7 @@ from alembic import context
 
 from src.config.settings import settings
 from src.database.mysql import Base
+target_metadata = Base.metadata
 
 # Import all models so Alembic can detect them
 from src.clients.models import Client

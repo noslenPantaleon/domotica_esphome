@@ -1,32 +1,25 @@
-from pydantic import BaseModel
-from datetime import date
+from pydantic import BaseModel, Field
+from datetime import datetime
 from typing import Optional
 from decimal import Decimal
-
-from src.billing.models import InvoiceStatusEnum
-
+from src.billing.models import InvoiceStatus
 
 class InvoiceBase(BaseModel):
-    client_id:      int
-    issue_date:     date
-    due_date:       date
-    amount:         Decimal
-    status:         InvoiceStatusEnum = InvoiceStatusEnum.pending
-    payment_method: Optional[str]     = None
-
+    client_id: int
+    amount: Decimal
+    status: InvoiceStatus = InvoiceStatus.pending
+    due_date: datetime
 
 class InvoiceCreate(InvoiceBase):
     pass
 
-
 class InvoiceUpdate(BaseModel):
-    due_date:       Optional[date]            = None
-    amount:         Optional[Decimal]         = None
-    status:         Optional[InvoiceStatusEnum] = None
-    payment_method: Optional[str]             = None
-
+    amount: Optional[Decimal] = None
+    status: Optional[InvoiceStatus] = None
+    due_date: Optional[datetime] = None
 
 class InvoiceResponse(InvoiceBase):
     invoice_id: int
+    created_at: datetime
 
     model_config = {"from_attributes": True}
